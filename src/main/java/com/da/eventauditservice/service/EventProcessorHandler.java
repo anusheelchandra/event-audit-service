@@ -1,8 +1,10 @@
 package com.da.eventauditservice.service;
 
+import com.da.eventauditservice.errorhandling.ErrorMessageUtil;
+import com.da.eventauditservice.errorhandling.ValidationException;
 import com.da.eventauditservice.model.ActiveTokens;
 import com.da.eventauditservice.model.Event;
-import com.da.eventauditservice.processor.EventProcessor;
+import com.da.eventauditservice.processor.EventProcessorFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -10,33 +12,31 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@SuppressWarnings("unchecked")
 @Slf4j
 @RequiredArgsConstructor
 public class EventProcessorHandler {
 
-    //private final CreatedEventProcessor createdEventProcessor;
-    private final EventProcessor eventProcessor;
+    private final EventProcessorFactory eventProcessorFactory;
 
-    public ActiveTokens fetchActiveTokens(List<Event> events) {
-        Map<String, Integer> resultMap = new LinkedHashMap<>();
-        processEvents(events, resultMap);
-        return new ActiveTokens(resultMap.keySet());
+    private static void checkForNullOrEmptyEvents(List<Event> events) throws ValidationException {
+        if (events == null || events.isEmpty()) {
+            throw new ValidationException(ErrorMessageUtil.getValidationMessage(ErrorMessageUtil.NULL_EMPTY_EVENTS));
+        }
     }
 
-    private void processEvents(List<Event> events, Map<String, Integer> resultMap) {
+    public ActiveTokens fetchActiveTokens(List<Event> events) throws ValidationException {
+        checkForNullOrEmptyEvents(events);
+        Map<String, Integer> resultHolder = new LinkedHashMap<>(); //we can use LinkedHashSet
+        processEvents(events, resultHolder);
+        return new ActiveTokens(resultHolder.keySet());
+    }
+
+    private void processEvents(List<Event> events, Map<String, Integer> resultHolder) throws ValidationException {
         for (var event: events) {
-            eventProcessor.getEventProcessor(event).processEvent(event, resultMap);
+            var consequences = eventProcessorFactory.getEventProcessor(event).processEvent(event, resultHolder);
+            processEvents(consequences, resultHolder);
         }
     }
- /*
-    private void processEvent(Event event, Map<String, Integer> resultMap) {
-        if (event instanceof Created) {
-            createdEventProcessor.processEvent(event, resultMap);
-        } else if (event instanceof Used usedEvent) {
-            usedEventProcessor.processEvent(usedEvent, resultMap);
-            if (!usedEvent.getConsequences().isEmpty()) {
-                processEvents(usedEvent.getConsequences(), resultMap);
-            }
-        }
-    }*/
+
 }

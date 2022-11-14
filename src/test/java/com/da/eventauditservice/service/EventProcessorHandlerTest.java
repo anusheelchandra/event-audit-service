@@ -1,37 +1,38 @@
 package com.da.eventauditservice.service;
 
 
+import com.da.eventauditservice.errorhandling.ValidationException;
 import com.da.eventauditservice.model.Created;
-import com.da.eventauditservice.model.Event;
 import com.da.eventauditservice.model.Used;
 import com.da.eventauditservice.processor.CreatedEventProcessor;
-import com.da.eventauditservice.processor.EventProcessor;
+import com.da.eventauditservice.processor.EventProcessorFactory;
 import com.da.eventauditservice.processor.UsedEventProcessor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static com.da.eventauditservice.testdata.TestData.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class EventProcessorHandlerTest {
 
     private EventProcessorHandler handler;
-    private UsedEventProcessor usedEventProcessor;
-    private CreatedEventProcessor createdEventProcessor;
 
     @BeforeEach
     public void setup() {
-        usedEventProcessor = new UsedEventProcessor();
-        createdEventProcessor = new CreatedEventProcessor();
-        var eventProcessor = new EventProcessor(Map.of(Created.class.getName(), createdEventProcessor,
-                Used.class.getName(), usedEventProcessor));
+        var usedEventProcessor = new UsedEventProcessor();
+        var createdEventProcessor = new CreatedEventProcessor();
+        var eventProcessor = new EventProcessorFactory(Map.of(Created.class.getName(), createdEventProcessor,
+                                                              Used.class.getName(), usedEventProcessor));
         handler = new EventProcessorHandler(eventProcessor);
     }
 
     @Test
-    public void shouldFetchActiveTokens() {
+    public void shouldFetchActiveTokens() throws ValidationException {
         var result  = handler.fetchActiveTokens(buildEvents(1, false));
         assertThat(result.getTokenIds()).isNotNull();
         assertThat(result.getTokenIds()).hasSize(2);
@@ -39,30 +40,39 @@ public class EventProcessorHandlerTest {
     }
 
     @Test
-    public void shouldFetchActiveTokensWhenReCreatingWithInactiveTokenId() {
+    public void shouldFetchActiveTokensWhenReCreatingWithInactiveTokenId() throws ValidationException {
         var result  = handler.fetchActiveTokens(buildEvents(1, true));
         assertThat(result.getTokenIds()).isNotNull();
         assertThat(result.getTokenIds()).hasSize(3);
         assertThat(result.getTokenIds()).containsExactly("2", "3", "1");
     }
 
-    private List<Event> buildEvents() {
-        var created1 = new Created("1");
-        var used1 = new Used("1", false, List.of(new Created("2"),
-                new Used("1", true, List.of(new Created("3")))));
-        return List.of(created1, used1);
+    @Test
+    public void shouldThrowExceptionForNullEventList() {
+        assertThatThrownBy(() -> handler.fetchActiveTokens(null))
+            .isExactlyInstanceOf(ValidationException.class)
+            .hasMessage("Validation failure(input events are null/empty)");
     }
 
-    private List<Event> buildEvents(int id, boolean reCreateToken) {
-        return reCreateToken ? List.of(created(id), used(id), created(id)) : List.of(created(id), used(id));
+    @Test
+    public void shouldThrowExceptionForEmptyEventList() {
+        assertThatThrownBy(() -> handler.fetchActiveTokens(Collections.emptyList()))
+            .isExactlyInstanceOf(ValidationException.class)
+            .hasMessage("Validation failure(input events are null/empty)");
     }
 
-    private Created created(int id) {
-        return new Created(String.valueOf(id));
+    @Test
+    public void shouldThrowExceptionTryingToUseNonExistingToken() {
+        assertThatThrownBy(() -> handler.fetchActiveTokens(List.of(usedWithConsequences(1))))
+            .isExactlyInstanceOf(ValidationException.class)
+            .hasMessage("Validation failure(using/consuming an non-existing/inactive token) for tokenId : {1}");
     }
 
-    private Used used(int idToUse) {
-        return new Used(String.valueOf(idToUse), false, List.of(new Created(String.valueOf(idToUse + 1)),
-                new Used(String.valueOf(idToUse), true, List.of(new Created(String.valueOf(idToUse + 2))))));
+    @Test
+    public void shouldThrowExceptionTryingToReCreateAnActiveToken() {
+        assertThatThrownBy(() -> handler.fetchActiveTokens(List.of(created(1), created(1))))
+                .isExactlyInstanceOf(ValidationException.class)
+                .hasMessage("Validation failure(recreation with active tokenId) for tokenId : {1}");
     }
+
 }

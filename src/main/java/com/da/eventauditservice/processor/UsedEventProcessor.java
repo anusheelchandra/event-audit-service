@@ -1,32 +1,39 @@
 package com.da.eventauditservice.processor;
 
+import com.da.eventauditservice.errorhandling.ValidationException;
+import com.da.eventauditservice.model.Event;
 import com.da.eventauditservice.model.Used;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.Map;
 
+import static com.da.eventauditservice.errorhandling.ErrorMessageUtil.CONSUMING_ARCHIVE_ABSENT_TOKEN;
+import static com.da.eventauditservice.errorhandling.ErrorMessageUtil.getValidationMessage;
+
+
 @Slf4j
-public class UsedEventProcessor extends CreatedEventProcessor{
+@NoArgsConstructor
+public class UsedEventProcessor implements EventProcessor<Used>{
 
-    public void processEvent(Used event, Map<String, Integer> resultMap) {
-        log.info(String.format("Processing Used event : %s", event.getTokenId()));
-        try {
-            if (event.getConsumed()) {
-                log.info(String.format("Processing Consumed event, token to be removed  : %s", event.getTokenId()));
-                assert resultMap.get(event.getTokenId()) == null : getValidationMessage(event.getTokenId());
-                resultMap.remove(event.getTokenId());
-            }
-            if (event.getConsequences() != null) {
-                super.processEvents(event.getConsequences(), resultMap);
-            }
-        } catch (Exception exception) {
-            log.error(String.format("%s: %s",exception.getMessage(), event.getTokenId()));
+    private static void checkUseOfInactiveOrAbsentToken(Used event, Map<String, Integer> resultHolder)
+            throws ValidationException {
+        if (!resultHolder.containsKey(event.getTokenId())) {
+            throw new ValidationException(
+                    getValidationMessage(CONSUMING_ARCHIVE_ABSENT_TOKEN, event.getTokenId()));
         }
-
     }
 
-    private static String getValidationMessage(String tokenId) {
-        return String.format("Validation failure(consuming an archive/inactive) for tokenId: %s", tokenId);
+    @Override
+    public List<Event> processEvent(Used event, Map<String, Integer> resultHolder) throws ValidationException {
+        log.info(String.format("Processing Used event : %s", event.getTokenId()));
+        checkUseOfInactiveOrAbsentToken(event, resultHolder);
+        if (event.getConsumed()) {
+            log.info(String.format("Processing Consumed event, token to be removed  : %s", event.getTokenId()));
+            resultHolder.remove(event.getTokenId());
+        }
+        return event.getConsequences();
     }
 
 }

@@ -1,41 +1,35 @@
 package com.da.eventauditservice.processor;
 
+import com.da.eventauditservice.errorhandling.ErrorMessageUtil;
+import com.da.eventauditservice.errorhandling.ValidationException;
 import com.da.eventauditservice.model.Created;
 import com.da.eventauditservice.model.Event;
-import com.da.eventauditservice.model.Used;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static com.da.eventauditservice.errorhandling.ErrorMessageUtil.RECREATING_ACTIVE_TOKEN;
+
 @Slf4j
 @RequiredArgsConstructor
-public class CreatedEventProcessor {
+public class CreatedEventProcessor implements EventProcessor<Created>{
 
-    private static UsedEventProcessor usedEventProcessor = new UsedEventProcessor();
-
-    public void processEvents(List<Event> events, Map<String, Integer> resultMap) {
-        for (var event: events) {
-            processEvent(event, resultMap);
+    private static void checkRecreationOfActiveToken(Created event, Map<String, Integer> resultHolder)
+            throws ValidationException {
+        if (resultHolder.containsKey(event.getTokenId())) {
+            throw new ValidationException(
+                    ErrorMessageUtil.getValidationMessage(RECREATING_ACTIVE_TOKEN, event.getTokenId()));
         }
     }
 
-    public void processEvent(Event event, Map<String, Integer> resultMap) {
-        try {
-            if (event instanceof Created) {
-                log.info(String.format("Processing Created event : %s", (event.getTokenId())));
-                assert resultMap.get(event.getTokenId()) == null : getValidationMessage(event.getTokenId());
-                resultMap.put(event.getTokenId(), null);
-            }
-            if (event instanceof Used userEvent) {
-                usedEventProcessor.processEvent(userEvent, resultMap);
-            }
-        } catch (Exception exception) {
-            log.error(String.format("%s : %s", exception.getMessage(), event.getTokenId()));
-        }
-    }
-
-    private static String getValidationMessage(String tokenId) {
-        return String.format("Validation failure(recreation with active tokenId) for tokenId : %s", tokenId);
+    @Override
+    public List<Event> processEvent(Created event, Map<String, Integer> resultHolder) throws ValidationException {
+        log.info(String.format("Processing Created event : %s", (event.getTokenId())));
+        checkRecreationOfActiveToken(event, resultHolder);
+        resultHolder.put(event.getTokenId(), null);
+        return Collections.emptyList();
     }
 }

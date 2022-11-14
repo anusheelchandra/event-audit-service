@@ -9,7 +9,7 @@ import java.util.List;
 @Data
 @RequiredArgsConstructor
 @AllArgsConstructor
-public class Used extends Event{
+public final class Used extends Event{
 
     private Boolean consumed;
     private List<Event> consequences;

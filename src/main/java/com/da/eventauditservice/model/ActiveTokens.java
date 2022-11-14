@@ -9,7 +9,7 @@ import java.util.Set;
 @Data
 @AllArgsConstructor
 @RequiredArgsConstructor
-public class ActiveTokens {
+public final class ActiveTokens {
 
     private Set<String> tokenIds;
 }
