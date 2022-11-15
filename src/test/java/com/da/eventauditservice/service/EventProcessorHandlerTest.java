@@ -34,6 +34,7 @@ public class EventProcessorHandlerTest {
     @Test
     public void shouldFetchActiveTokens() throws ValidationException {
         var result  = handler.fetchActiveTokens(buildEvents(1, false));
+        assertThat(result).isNotNull();
         assertThat(result.getTokenIds()).isNotNull();
         assertThat(result.getTokenIds()).hasSize(2);
         assertThat(result.getTokenIds()).containsExactly("2", "3");
@@ -42,6 +43,7 @@ public class EventProcessorHandlerTest {
     @Test
     public void shouldFetchActiveTokensWhenReCreatingWithInactiveTokenId() throws ValidationException {
         var result  = handler.fetchActiveTokens(buildEvents(1, true));
+        assertThat(result).isNotNull();
         assertThat(result.getTokenIds()).isNotNull();
         assertThat(result.getTokenIds()).hasSize(3);
         assertThat(result.getTokenIds()).containsExactly("2", "3", "1");
@@ -71,8 +73,8 @@ public class EventProcessorHandlerTest {
     @Test
     public void shouldThrowExceptionTryingToReCreateAnActiveToken() {
         assertThatThrownBy(() -> handler.fetchActiveTokens(List.of(created(1), created(1))))
-                .isExactlyInstanceOf(ValidationException.class)
-                .hasMessage("Validation failure(recreation with active tokenId) for tokenId : {1}");
+            .isExactlyInstanceOf(ValidationException.class)
+            .hasMessage("Validation failure(recreation with active tokenId) for tokenId : {1}");
     }
 
 }
